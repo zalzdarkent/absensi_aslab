@@ -49,43 +49,49 @@ const breadcrumbs: BreadcrumbItem[] = [
 // DataTable columns configuration
 const columns: Column[] = [
     {
-        key: 'aslab',
+        key: 'name',
         label: 'Aslab',
         sortable: true,
-        width: '25%'
+        width: '25%',
+        searchable: true
     },
     {
         key: 'rfid_code',
         label: 'Kode RFID',
         sortable: true,
-        width: '15%'
+        width: '15%',
+        searchable: true
     },
     {
         key: 'prodi',
         label: 'Program Studi',
         sortable: true,
-        width: '20%'
+        width: '20%',
+        searchable: true
     },
     {
         key: 'semester',
         label: 'Semester',
         sortable: true,
         width: '10%',
-        align: 'center'
+        align: 'center',
+        searchable: true
     },
     {
-        key: 'status',
+        key: 'is_active',
         label: 'Status',
         sortable: true,
         width: '15%',
-        align: 'center'
+        align: 'center',
+        searchable: false
     },
     {
         key: 'actions',
         label: 'Aksi',
         sortable: false,
         width: '15%',
-        align: 'center'
+        align: 'center',
+        searchable: false
     }
 ];
 
@@ -214,7 +220,7 @@ const handleRowClick = (row: User) => {
                 </template>
 
                 <!-- Custom cell templates -->
-                <template #cell-aslab="{ row }">
+                <template #cell-name="{ row }">
                     <div>
                         <div class="text-sm font-medium text-foreground">{{ row.name }}</div>
                         <div class="text-sm text-muted-foreground">{{ row.email }}</div>
@@ -231,7 +237,7 @@ const handleRowClick = (row: User) => {
                     <span class="text-sm text-foreground">{{ value }}</span>
                 </template>
 
-                <template #cell-status="{ row }">
+                <template #cell-is_active="{ row }">
                     <button
                         @click.stop="toggleStatus(row)"
                         :class="[

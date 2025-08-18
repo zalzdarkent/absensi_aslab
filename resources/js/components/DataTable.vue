@@ -24,6 +24,16 @@ export interface Column {
     render?: (value: any, row: any) => any;
 }
 
+export interface ServerPagination {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number;
+    to: number;
+    links: any[];
+}
+
 export interface DataTableProps {
     columns: Column[];
     data: any[];
@@ -38,6 +48,7 @@ export interface DataTableProps {
     exportFilename?: string;
     itemsPerPageOptions?: number[];
     defaultItemsPerPage?: number;
+    pagination?: ServerPagination;
 }
 
 const props = withDefaults(defineProps<DataTableProps>(), {
@@ -56,6 +67,9 @@ const emit = defineEmits<{
     refresh: [];
     export: [format: 'csv' | 'excel'];
     rowClick: [row: any];
+    search: [query: string];
+    sort: [column: string | null, direction: 'asc' | 'desc' | null];
+    pageChange: [page: number];
 }>();
 
 // Local state for client-side functionality
@@ -77,7 +91,9 @@ const filteredData = computed(() => {
             return props.columns.some(column => {
                 if (column.searchable === false) return false;
                 const value = getCellValue(row, column);
-                return String(value).toLowerCase().includes(query);
+                // Handle null/undefined values and ensure we have a string to search
+                const searchValue = value != null ? String(value).toLowerCase() : '';
+                return searchValue.includes(query);
             });
         });
     }
@@ -99,18 +115,36 @@ const filteredData = computed(() => {
     return filtered;
 });
 
-// Client-side pagination
+// Check if using server-side pagination
+const isServerSidePagination = computed(() => props.pagination !== undefined);
+
+// Client-side pagination (only when not using server-side)
 const paginatedData = computed(() => {
+    if (isServerSidePagination.value) {
+        return props.data; // Server already handles pagination
+    }
+
     const start = (currentPage.value - 1) * itemsPerPage.value;
     const end = start + itemsPerPage.value;
     return filteredData.value.slice(start, end);
 });
 
 const totalPages = computed(() => {
+    if (isServerSidePagination.value) {
+        return props.pagination?.last_page || 1;
+    }
     return Math.ceil(filteredData.value.length / itemsPerPage.value);
 });
 
 const paginationInfo = computed(() => {
+    if (isServerSidePagination.value) {
+        return {
+            from: props.pagination?.from || 0,
+            to: props.pagination?.to || 0,
+            total: props.pagination?.total || 0
+        };
+    }
+
     const total = filteredData.value.length;
     const from = total === 0 ? 0 : (currentPage.value - 1) * itemsPerPage.value + 1;
     const to = Math.min(currentPage.value * itemsPerPage.value, total);
@@ -118,36 +152,62 @@ const paginationInfo = computed(() => {
     return { from, to, total };
 });
 
-// Watch for data changes to reset pagination
+// Watch for data changes to reset pagination (only for client-side)
 watch(() => props.data, () => {
-    currentPage.value = 1;
+    if (!isServerSidePagination.value) {
+        currentPage.value = 1;
+    }
 });
 
 watch(searchQuery, () => {
-    currentPage.value = 1;
+    if (isServerSidePagination.value) {
+        emit('search', searchQuery.value);
+    } else {
+        currentPage.value = 1;
+    }
 });
 
 watch(itemsPerPage, () => {
-    currentPage.value = 1;
+    if (!isServerSidePagination.value) {
+        currentPage.value = 1;
+    }
 });
 
 // Methods
 const handleSort = (column: Column) => {
     if (!column.sortable && column.sortable !== undefined) return;
 
-    if (sortColumn.value === column.key) {
-        // Cycle through: asc -> desc -> null
-        if (sortDirection.value === 'asc') {
-            sortDirection.value = 'desc';
-        } else if (sortDirection.value === 'desc') {
-            sortDirection.value = null;
-            sortColumn.value = null;
+    if (isServerSidePagination.value) {
+        // For server-side sorting
+        if (sortColumn.value === column.key) {
+            if (sortDirection.value === 'asc') {
+                sortDirection.value = 'desc';
+            } else if (sortDirection.value === 'desc') {
+                sortDirection.value = null;
+                sortColumn.value = null;
+            } else {
+                sortDirection.value = 'asc';
+            }
         } else {
+            sortColumn.value = column.key;
             sortDirection.value = 'asc';
         }
+        emit('sort', sortColumn.value, sortDirection.value);
     } else {
-        sortColumn.value = column.key;
-        sortDirection.value = 'asc';
+        // For client-side sorting
+        if (sortColumn.value === column.key) {
+            if (sortDirection.value === 'asc') {
+                sortDirection.value = 'desc';
+            } else if (sortDirection.value === 'desc') {
+                sortDirection.value = null;
+                sortColumn.value = null;
+            } else {
+                sortDirection.value = 'asc';
+            }
+        } else {
+            sortColumn.value = column.key;
+            sortDirection.value = 'asc';
+        }
     }
 };
 
@@ -170,25 +230,39 @@ const handleRowClick = (row: any) => {
 
 const getCellValue = (row: any, column: Column) => {
     const value = row[column.key];
+
+    // For name column, also include email in searchable text
+    if (column.key === 'name' && row.email) {
+        const nameValue = value || '';
+        const emailValue = row.email || '';
+        return column.render ? column.render(value, row) : `${nameValue} ${emailValue}`;
+    }
+
     return column.render ? column.render(value, row) : value;
 };
 
 // Pagination methods
 const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages.value) {
-        currentPage.value = page;
+        if (isServerSidePagination.value) {
+            emit('pageChange', page);
+        } else {
+            currentPage.value = page;
+        }
     }
 };
 
 const nextPage = () => {
-    if (currentPage.value < totalPages.value) {
-        currentPage.value++;
+    const currentPageNum = isServerSidePagination.value ? (props.pagination?.current_page || 1) : currentPage.value;
+    if (currentPageNum < totalPages.value) {
+        goToPage(currentPageNum + 1);
     }
 };
 
 const prevPage = () => {
-    if (currentPage.value > 1) {
-        currentPage.value--;
+    const currentPageNum = isServerSidePagination.value ? (props.pagination?.current_page || 1) : currentPage.value;
+    if (currentPageNum > 1) {
+        goToPage(currentPageNum - 1);
     }
 };
 
@@ -196,14 +270,15 @@ const getVisiblePages = () => {
     const delta = 2;
     const range = [];
     const rangeWithDots = [];
+    const currentPageNum = isServerSidePagination.value ? (props.pagination?.current_page || 1) : currentPage.value;
 
-    for (let i = Math.max(2, currentPage.value - delta);
-         i <= Math.min(totalPages.value - 1, currentPage.value + delta);
+    for (let i = Math.max(2, currentPageNum - delta);
+         i <= Math.min(totalPages.value - 1, currentPageNum + delta);
          i++) {
         range.push(i);
     }
 
-    if (currentPage.value - delta > 2) {
+    if (currentPageNum - delta > 2) {
         rangeWithDots.push(1, '...');
     } else {
         rangeWithDots.push(1);
@@ -211,7 +286,7 @@ const getVisiblePages = () => {
 
     rangeWithDots.push(...range);
 
-    if (currentPage.value + delta < totalPages.value - 1) {
+    if (currentPageNum + delta < totalPages.value - 1) {
         rangeWithDots.push('...', totalPages.value);
     } else if (totalPages.value > 1) {
         rangeWithDots.push(totalPages.value);
@@ -382,10 +457,10 @@ const getVisiblePages = () => {
                     <!-- First Page -->
                     <button
                         @click="goToPage(1)"
-                        :disabled="currentPage === 1"
+                        :disabled="(isServerSidePagination ? (props.pagination?.current_page || 1) : currentPage) === 1"
                         :class="[
                             'p-2 rounded-md transition-colors',
-                            currentPage === 1
+                            (isServerSidePagination ? (props.pagination?.current_page || 1) : currentPage) === 1
                                 ? 'text-muted-foreground/50 cursor-not-allowed'
                                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                         ]"
@@ -397,10 +472,10 @@ const getVisiblePages = () => {
                     <!-- Previous Page -->
                     <button
                         @click="prevPage"
-                        :disabled="currentPage === 1"
+                        :disabled="(isServerSidePagination ? (props.pagination?.current_page || 1) : currentPage) === 1"
                         :class="[
                             'px-3 py-2 text-sm rounded-md transition-colors',
-                            currentPage === 1
+                            (isServerSidePagination ? (props.pagination?.current_page || 1) : currentPage) === 1
                                 ? 'text-muted-foreground/50 cursor-not-allowed'
                                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                         ]"
@@ -416,7 +491,7 @@ const getVisiblePages = () => {
                             @click="goToPage(Number(page))"
                             :class="[
                                 'px-3 py-2 text-sm rounded-md transition-colors',
-                                currentPage === page
+                                (isServerSidePagination ? (props.pagination?.current_page || 1) : currentPage) === page
                                     ? 'bg-primary text-primary-foreground'
                                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                             ]"
@@ -428,10 +503,10 @@ const getVisiblePages = () => {
                     <!-- Next Page -->
                     <button
                         @click="nextPage"
-                        :disabled="currentPage === totalPages"
+                        :disabled="(isServerSidePagination ? (props.pagination?.current_page || 1) : currentPage) === totalPages"
                         :class="[
                             'px-3 py-2 text-sm rounded-md transition-colors',
-                            currentPage === totalPages
+                            (isServerSidePagination ? (props.pagination?.current_page || 1) : currentPage) === totalPages
                                 ? 'text-muted-foreground/50 cursor-not-allowed'
                                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                         ]"
@@ -442,10 +517,10 @@ const getVisiblePages = () => {
                     <!-- Last Page -->
                     <button
                         @click="goToPage(totalPages)"
-                        :disabled="currentPage === totalPages"
+                        :disabled="(isServerSidePagination ? (props.pagination?.current_page || 1) : currentPage) === totalPages"
                         :class="[
                             'p-2 rounded-md transition-colors',
-                            currentPage === totalPages
+                            (isServerSidePagination ? (props.pagination?.current_page || 1) : currentPage) === totalPages
                                 ? 'text-muted-foreground/50 cursor-not-allowed'
                                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                         ]"

@@ -100,42 +100,101 @@ class DashboardController extends Controller
     {
         try {
             $search = $request->get('search');
-            $prodi = $request->get('prodi');
+            $status = $request->get('status');
             $date = $request->get('date');
+            $sort = $request->get('sort');
+            $direction = $request->get('direction', 'desc');
 
+            // Get unique dates and users for attendance records
             $query = Attendance::with('user')
+                ->selectRaw('attendances.user_id, attendances.date, MIN(attendances.timestamp) as check_in_time, MAX(attendances.timestamp) as check_out_time')
                 ->when($search, function ($q) use ($search) {
                     $q->whereHas('user', function ($userQuery) use ($search) {
-                        $userQuery->where('name', 'like', "%{$search}%");
-                    });
-                })
-                ->when($prodi, function ($q) use ($prodi) {
-                    $q->whereHas('user', function ($userQuery) use ($prodi) {
-                        $userQuery->where('prodi', $prodi);
+                        $userQuery->where('name', 'like', "%{$search}%")
+                                  ->orWhere('email', 'like', "%{$search}%");
                     });
                 })
                 ->when($date, function ($q) use ($date) {
-                    $q->where('date', $date);
+                    $q->where('attendances.date', $date);
                 })
-                ->orderBy('date', 'desc')
-                ->orderBy('timestamp', 'desc');
+                ->groupBy('attendances.user_id', 'attendances.date');
 
-            $attendances = $query->paginate(20);
+            // Apply sorting
+            if ($sort) {
+                switch ($sort) {
+                    case 'user':
+                        $query->join('users', 'attendances.user_id', '=', 'users.id')
+                              ->addSelect('users.name as user_name')
+                              ->orderBy('users.name', $direction);
+                        break;
+                    case 'date':
+                        $query->orderBy('attendances.date', $direction);
+                        break;
+                    case 'check_in':
+                        $query->orderBy('check_in_time', $direction);
+                        break;
+                    case 'check_out':
+                        $query->orderBy('check_out_time', $direction);
+                        break;
+                    default:
+                        $query->orderBy('attendances.date', 'desc');
+                }
+            } else {
+                $query->orderBy('attendances.date', 'desc');
+            }
 
-            $prodis = User::where('role', 'aslab')
-                         ->where('is_active', true)
-                         ->distinct()
-                         ->pluck('prodi')
-                         ->filter()
-                         ->sort()
-                         ->values();
+            $attendanceRecords = $query->paginate(20);
+
+            // Transform the data to match the expected structure
+            $attendanceRecords->getCollection()->transform(function ($record) {
+                $user = User::find($record->user_id);
+                $checkInRecord = Attendance::where('user_id', $record->user_id)
+                    ->where('date', $record->date)
+                    ->where('type', 'check_in')
+                    ->first();
+
+                $checkOutRecord = Attendance::where('user_id', $record->user_id)
+                    ->where('date', $record->date)
+                    ->where('type', 'check_out')
+                    ->first();
+
+                // Determine status
+                $status = 'present'; // Default
+                if ($checkInRecord && $checkInRecord->timestamp->format('H:i') > '08:30') {
+                    $status = 'late';
+                }
+                if (!$checkInRecord) {
+                    $status = 'absent';
+                }
+
+                return [
+                    'id' => $record->user_id . '_' . $record->date,
+                    'user' => [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                    ],
+                    'date' => $record->date,
+                    'check_in' => $checkInRecord ? $checkInRecord->timestamp->toISOString() : null,
+                    'check_out' => $checkOutRecord ? $checkOutRecord->timestamp->toISOString() : null,
+                    'status' => $status,
+                    'notes' => $checkInRecord ? $checkInRecord->notes : null,
+                ];
+            });
+
+            // Filter by status if provided
+            if ($status) {
+                $filteredData = $attendanceRecords->getCollection()->filter(function ($record) use ($status) {
+                    return $record['status'] === $status;
+                });
+                $attendanceRecords->setCollection($filteredData);
+            }
 
             return Inertia::render('AttendanceHistory', [
-                'attendances' => $attendances,
-                'prodis' => $prodis,
+                'attendances' => $attendanceRecords,
                 'filters' => [
                     'search' => $search,
-                    'prodi' => $prodi,
+                    'status' => $status,
                     'date' => $date,
                 ],
             ]);

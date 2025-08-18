@@ -1,24 +1,23 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
+import DataTable, { type Column } from '@/components/DataTable.vue';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link, router } from '@inertiajs/vue3';
-import { History, Search, Filter, Download, Calendar, Clock, User } from 'lucide-vue-next';
-import { ref, watch } from 'vue';
-
-interface User {
-    id: number;
-    name: string;
-    prodi: string;
-    semester: number;
-}
+import { Head, router } from '@inertiajs/vue3';
+import { History, Calendar, Clock, CheckCircle, XCircle } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
 
 interface Attendance {
     id: number;
-    type: 'check_in' | 'check_out';
-    timestamp: string;
+    user: {
+        id: number;
+        name: string;
+        email: string;
+    };
+    check_in: string;
+    check_out: string | null;
     date: string;
-    notes: string;
-    user: User;
+    status: 'present' | 'late' | 'absent';
+    notes: string | null;
 }
 
 interface Props {
@@ -27,22 +26,19 @@ interface Props {
         links: any[];
         meta: any;
     };
-    prodis?: string[];
     filters?: {
         search?: string;
-        prodi?: string;
+        status?: string;
         date?: string;
     };
 }
 
 const props = withDefaults(defineProps<Props>(), {
     attendances: () => ({ data: [], links: [], meta: { total: 0, from: 0, to: 0 } }),
-    prodis: () => [],
-    filters: () => ({ search: '', prodi: '', date: '' })
+    filters: () => ({ search: '', status: '', date: '' })
 });
 
-const search = ref(props.filters?.search || '');
-const selectedProdi = ref(props.filters?.prodi || '');
+const selectedStatus = ref(props.filters?.status || '');
 const selectedDate = ref(props.filters?.date || '');
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -56,65 +52,176 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-// Watch for changes and update URL
-watch([search, selectedProdi, selectedDate], () => {
+// DataTable columns configuration
+const columns: Column[] = [
+    {
+        key: 'user',
+        label: 'Aslab',
+        sortable: true,
+        width: '25%',
+        searchable: true
+    },
+    {
+        key: 'date',
+        label: 'Tanggal',
+        sortable: true,
+        width: '15%'
+    },
+    {
+        key: 'check_in',
+        label: 'Check In',
+        sortable: true,
+        width: '15%',
+        align: 'center'
+    },
+    {
+        key: 'check_out',
+        label: 'Check Out',
+        sortable: true,
+        width: '15%',
+        align: 'center'
+    },
+    {
+        key: 'status',
+        label: 'Status',
+        sortable: true,
+        width: '15%',
+        align: 'center'
+    },
+    {
+        key: 'notes',
+        label: 'Catatan',
+        sortable: false,
+        width: '15%'
+    }
+];
+
+// Computed properties for pagination
+const pagination = computed(() => {
+    if (!props.attendances?.links || !props.attendances?.meta) return null;
+
+    return {
+        current_page: props.attendances.meta.current_page || 1,
+        last_page: props.attendances.meta.last_page || 1,
+        per_page: props.attendances.meta.per_page || 10,
+        total: props.attendances.meta.total || 0,
+        from: props.attendances.meta.from || 0,
+        to: props.attendances.meta.to || 0,
+        links: props.attendances.links
+    };
+});
+
+// Stats computed
+const stats = computed(() => ({
+    total: props.attendances?.meta?.total || 0,
+    present: props.attendances?.data?.filter(a => a.status === 'present').length || 0,
+    late: props.attendances?.data?.filter(a => a.status === 'late').length || 0,
+    absent: props.attendances?.data?.filter(a => a.status === 'absent').length || 0
+}));
+
+// DataTable event handlers
+const handleSearch = (query: string) => {
     router.get('/attendance-history', {
-        search: search.value || undefined,
-        prodi: selectedProdi.value || undefined,
+        search: query || undefined,
+        status: selectedStatus.value || undefined,
         date: selectedDate.value || undefined,
     }, {
         preserveState: true,
         replace: true,
     });
-});
-
-const clearFilters = () => {
-    search.value = '';
-    selectedProdi.value = '';
-    selectedDate.value = '';
 };
 
-const formatTime = (timestamp: string) => {
-    if (!timestamp) return 'N/A';
-    try {
-        return new Date(timestamp).toLocaleTimeString('id-ID', {
-            hour: '2-digit',
-            minute: '2-digit',
-        });
-    } catch {
-        return 'N/A';
-    }
+const handleSort = (column: string | null, direction: 'asc' | 'desc' | null) => {
+    router.get('/attendance-history', {
+        search: props.filters?.search || undefined,
+        status: selectedStatus.value || undefined,
+        date: selectedDate.value || undefined,
+        sort: column || undefined,
+        direction: direction || undefined,
+    }, {
+        preserveState: true,
+        replace: true,
+    });
+};
+
+const handleFilter = () => {
+    router.get('/attendance-history', {
+        search: props.filters?.search || undefined,
+        status: selectedStatus.value || undefined,
+        date: selectedDate.value || undefined,
+    }, {
+        preserveState: true,
+        replace: true,
+    });
+};
+
+const handlePageChange = (page: number) => {
+    router.get('/attendance-history', {
+        search: props.filters?.search || undefined,
+        status: selectedStatus.value || undefined,
+        date: selectedDate.value || undefined,
+        page: page,
+    }, {
+        preserveState: true,
+        replace: true,
+    });
+};
+
+const clearFilters = () => {
+    selectedStatus.value = '';
+    selectedDate.value = '';
+    router.get('/attendance-history', {}, {
+        preserveState: true,
+        replace: true,
+    });
+};
+
+const handleRowClick = (row: Attendance) => {
+    router.visit(`/aslabs/${row.user.id}`);
+};
+
+const formatTime = (time: string | null) => {
+    if (!time) return '-';
+    return new Date(time).toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit'
+    });
 };
 
 const formatDate = (date: string) => {
-    if (!date) return 'N/A';
-    try {
-        return new Date(date).toLocaleDateString('id-ID', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-        });
-    } catch {
-        return 'N/A';
+    return new Date(date).toLocaleDateString('id-ID', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+};
+
+const getStatusIcon = (status: string) => {
+    switch (status) {
+        case 'present': return CheckCircle;
+        case 'late': return Clock;
+        case 'absent': return XCircle;
+        default: return Clock;
     }
 };
 
-const getTypeColor = (type: string) => {
-    if (!type) return 'bg-gray-100 text-gray-800';
-
-    return type === 'check_in'
-        ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-        : 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
+const getStatusColor = (status: string) => {
+    switch (status) {
+        case 'present': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+        case 'late': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400';
+        case 'absent': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
+        default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+    }
 };
 
-const exportData = () => {
-    const params = new URLSearchParams({
-        search: search.value || '',
-        prodi: selectedProdi.value || '',
-        date: selectedDate.value || '',
-    });
-    window.location.href = `/attendance-history/export?${params.toString()}`;
+const getStatusText = (status: string) => {
+    switch (status) {
+        case 'present': return 'Hadir';
+        case 'late': return 'Terlambat';
+        case 'absent': return 'Tidak Hadir';
+        default: return status;
+    }
 };
 </script>
 
@@ -122,7 +229,7 @@ const exportData = () => {
     <Head title="Riwayat Absensi" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-6 rounded-xl p-6 overflow-x-auto">
+        <div class="flex h-full flex-1 flex-col gap-6 rounded-xl p-6">
             <!-- Header -->
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -132,199 +239,129 @@ const exportData = () => {
                     </h1>
                     <p class="mt-1 text-sm text-muted-foreground">Lihat semua aktivitas absensi aslab</p>
                 </div>
-                <div class="mt-4 sm:mt-0">
-                    <button
-                        @click="exportData"
-                        class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors"
-                    >
-                        <Download class="h-4 w-4 mr-2" />
-                        Export Data
-                    </button>
-                </div>
-            </div>
-
-            <!-- Filters -->
-            <div class="bg-card rounded-lg border border-border p-4">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="md:col-span-2">
-                        <div class="relative">
-                            <Search class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <input
-                                v-model="search"
-                                type="text"
-                                placeholder="Cari nama aslab..."
-                                class="w-full pl-10 pr-4 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                            />
-                        </div>
-                    </div>
-                    <div>
-                        <select
-                            v-model="selectedProdi"
-                            class="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                        >
-                            <option value="">Semua Prodi</option>
-                            <option v-for="prodi in (prodis || [])" :key="prodi" :value="prodi">
-                                {{ prodi }}
-                            </option>
-                        </select>
-                    </div>
-                    <div class="flex space-x-2">
-                        <input
-                            v-model="selectedDate"
-                            type="date"
-                            class="flex-1 px-3 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                        />
-                        <button
-                            @click="clearFilters"
-                            class="px-4 py-2 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted transition-colors"
-                        >
-                            <Filter class="h-4 w-4" />
-                        </button>
-                    </div>
-                </div>
             </div>
 
             <!-- Stats -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div class="bg-card rounded-lg border border-border p-4">
                     <div class="flex items-center">
                         <Calendar class="h-8 w-8 text-blue-500" />
                         <div class="ml-4">
-                            <p class="text-sm text-muted-foreground">Total Records</p>
-                            <p class="text-2xl font-bold text-foreground">{{ attendances?.meta?.total || 0 }}</p>
+                            <p class="text-sm text-muted-foreground">Total Absensi</p>
+                            <p class="text-2xl font-bold text-foreground">{{ stats.total }}</p>
                         </div>
                     </div>
                 </div>
                 <div class="bg-card rounded-lg border border-border p-4">
                     <div class="flex items-center">
-                        <Clock class="h-8 w-8 text-green-500" />
+                        <CheckCircle class="h-8 w-8 text-green-500" />
                         <div class="ml-4">
-                            <p class="text-sm text-muted-foreground">Check-ins</p>
-                            <p class="text-2xl font-bold text-foreground">
-                                {{ attendances?.data?.filter(a => a.type === 'check_in').length || 0 }}
-                            </p>
+                            <p class="text-sm text-muted-foreground">Hadir</p>
+                            <p class="text-2xl font-bold text-foreground">{{ stats.present }}</p>
                         </div>
                     </div>
                 </div>
                 <div class="bg-card rounded-lg border border-border p-4">
                     <div class="flex items-center">
-                        <Clock class="h-8 w-8 text-blue-500" />
+                        <Clock class="h-8 w-8 text-yellow-500" />
                         <div class="ml-4">
-                            <p class="text-sm text-muted-foreground">Check-outs</p>
-                            <p class="text-2xl font-bold text-foreground">
-                                {{ attendances?.data?.filter(a => a.type === 'check_out').length || 0 }}
-                            </p>
+                            <p class="text-sm text-muted-foreground">Terlambat</p>
+                            <p class="text-2xl font-bold text-foreground">{{ stats.late }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-card rounded-lg border border-border p-4">
+                    <div class="flex items-center">
+                        <XCircle class="h-8 w-8 text-red-500" />
+                        <div class="ml-4">
+                            <p class="text-sm text-muted-foreground">Tidak Hadir</p>
+                            <p class="text-2xl font-bold text-foreground">{{ stats.absent }}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Table -->
-            <div class="bg-card rounded-lg border border-border overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-muted/50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                    Tanggal & Waktu
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                    Aslab
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                    Tipe
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                    Catatan
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                    Aksi
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-border">
-                            <tr v-if="!attendances?.data || attendances.data.length === 0">
-                                <td colspan="5" class="px-6 py-8 text-center text-muted-foreground">
-                                    <History class="mx-auto h-12 w-12 text-muted-foreground/50" />
-                                    <p class="mt-2">Tidak ada data absensi ditemukan</p>
-                                </td>
-                            </tr>
-                            <tr v-else v-for="attendance in (attendances?.data || [])" :key="attendance?.id || Math.random()" class="hover:bg-muted/30 transition-colors">
-                                <td class="px-6 py-4">
-                                    <div>
-                                        <div class="text-sm font-medium text-foreground">
-                                            {{ formatDate(attendance?.date) }}
-                                        </div>
-                                        <div class="text-sm text-muted-foreground">
-                                            {{ formatTime(attendance?.timestamp) }}
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <div class="flex items-center">
-                                        <User class="h-8 w-8 text-muted-foreground bg-muted rounded-full p-1 mr-3" />
-                                        <div>
-                                            <div class="text-sm font-medium text-foreground">{{ attendance.user?.name || 'N/A' }}</div>
-                                            <div class="text-sm text-muted-foreground">
-                                                {{ attendance.user?.prodi || 'N/A' }} - Semester {{ attendance.user?.semester || 'N/A' }}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <span :class="['inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', getTypeColor(attendance?.type)]">
-                                        {{ attendance?.type === 'check_in' ? 'Check-in' : 'Check-out' }}
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 text-sm text-foreground">
-                                    {{ attendance?.notes || '-' }}
-                                </td>
-                                <td class="px-6 py-4">
-                                    <Link
-                                        v-if="attendance.user?.id"
-                                        :href="`/aslabs/${attendance.user.id}`"
-                                        class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium transition-colors"
-                                    >
-                                        Lihat Detail
-                                    </Link>
-                                    <span v-else class="text-muted-foreground text-sm">
-                                        N/A
-                                    </span>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Pagination -->
-                <div v-if="attendances?.links && attendances.links.length > 3" class="bg-muted/30 px-6 py-3 border-t border-border">
-                    <div class="flex items-center justify-between">
-                        <div class="text-sm text-muted-foreground">
-                            Menampilkan {{ attendances?.meta?.from || 0 }} - {{ attendances?.meta?.to || 0 }} dari {{ attendances?.meta?.total || 0 }} data
-                        </div>
-                        <div class="flex space-x-1">
-                            <Link
-                                v-for="link in (attendances?.links || [])"
-                                :key="link.label"
-                                :href="link.url"
-                                :class="[
-                                    'px-3 py-2 text-sm rounded-md transition-colors',
-                                    link.active
-                                        ? 'bg-primary text-primary-foreground'
-                                        : link.url
-                                        ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                                        : 'text-muted-foreground/50 cursor-not-allowed'
-                                ]"
-                                :preserve-scroll="true"
+            <!-- DataTable -->
+            <DataTable
+                :columns="columns"
+                :data="attendances?.data || []"
+                :pagination="pagination || undefined"
+                :empty-message="'Tidak ada data absensi ditemukan'"
+                :empty-icon="History"
+                :show-refresh="true"
+                :show-export="false"
+                @search="handleSearch"
+                @sort="handleSort"
+                @page-change="handlePageChange"
+                @refresh="() => router.reload()"
+                @row-click="handleRowClick"
+            >
+                <!-- Filters slot -->
+                <template #filters>
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <div class="w-full sm:w-48">
+                            <select
+                                v-model="selectedStatus"
+                                @change="handleFilter"
+                                class="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                             >
-                                <span v-if="link.label.includes('Previous')">&larr; Sebelumnya</span>
-                                <span v-else-if="link.label.includes('Next')">Selanjutnya &rarr;</span>
-                                <span v-else>{{ link.label }}</span>
-                            </Link>
+                                <option value="">Semua Status</option>
+                                <option value="present">Hadir</option>
+                                <option value="late">Terlambat</option>
+                                <option value="absent">Tidak Hadir</option>
+                            </select>
                         </div>
+                        <div class="w-full sm:w-48">
+                            <input
+                                v-model="selectedDate"
+                                @change="handleFilter"
+                                type="date"
+                                class="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
+                        </div>
+                        <button
+                            @click="clearFilters"
+                            class="px-4 py-2 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted transition-colors"
+                        >
+                            Reset Filter
+                        </button>
                     </div>
-                </div>
-            </div>
+                </template>
+
+                <!-- Custom cell templates -->
+                <template #cell-user="{ row }">
+                    <div>
+                        <div class="text-sm font-medium text-foreground">{{ row.user.name }}</div>
+                        <div class="text-sm text-muted-foreground">{{ row.user.email }}</div>
+                    </div>
+                </template>
+
+                <template #cell-date="{ value }">
+                    <span class="text-sm text-foreground">{{ formatDate(value) }}</span>
+                </template>
+
+                <template #cell-check_in="{ value }">
+                    <span class="text-sm text-foreground font-mono">{{ formatTime(value) }}</span>
+                </template>
+
+                <template #cell-check_out="{ value }">
+                    <span class="text-sm text-foreground font-mono">{{ formatTime(value) }}</span>
+                </template>
+
+                <template #cell-status="{ row }">
+                    <span :class="[
+                        'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                        getStatusColor(row.status)
+                    ]">
+                        <component :is="getStatusIcon(row.status)" class="h-3 w-3 mr-1" />
+                        {{ getStatusText(row.status) }}
+                    </span>
+                </template>
+
+                <template #cell-notes="{ value }">
+                    <span class="text-sm text-muted-foreground">{{ value || '-' }}</span>
+                </template>
+            </DataTable>
         </div>
     </AppLayout>
 </template>

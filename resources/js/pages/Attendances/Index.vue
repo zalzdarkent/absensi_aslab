@@ -154,6 +154,18 @@ const handleFilter = () => {
     });
 };
 
+const handlePageChange = (page: number) => {
+    router.get('/attendances', {
+        search: props.filters?.search || undefined,
+        status: selectedStatus.value || undefined,
+        date: selectedDate.value || undefined,
+        page: page,
+    }, {
+        preserveState: true,
+        replace: true,
+    });
+};
+
 const clearFilters = () => {
     selectedStatus.value = '';
     selectedDate.value = '';
@@ -276,6 +288,7 @@ const getStatusText = (status: string) => {
                 :show-export="true"
                 @search="handleSearch"
                 @sort="handleSort"
+                @page-change="handlePageChange"
                 @refresh="() => router.reload()"
                 @row-click="handleRowClick"
             >
