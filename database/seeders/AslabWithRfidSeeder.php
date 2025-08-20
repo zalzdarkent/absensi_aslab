@@ -6,29 +6,33 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
-class AslabSeeder extends Seeder
+class AslabWithRfidSeeder extends Seeder
 {
     /**
      * Run the database seeds.
+     * This seeder includes sample RFID UIDs for testing purposes
      */
     public function run(): void
     {
         // Create admin user
-        User::create([
-            'name' => 'Administrator',
-            'email' => 'admin@aslab.local',
-            'password' => Hash::make('password'),
-            'role' => 'admin',
-            'is_active' => true,
-        ]);
+        User::updateOrCreate(
+            ['email' => 'admin@aslab.local'],
+            [
+                'name' => 'Administrator',
+                'email' => 'admin@aslab.local',
+                'password' => Hash::make('password'),
+                'role' => 'admin',
+                'is_active' => true,
+            ]
+        );
 
-        // Create sample aslabs
+        // Create sample aslabs with realistic RFID UIDs for testing
         $aslabs = [
             [
                 'name' => 'Alif Fadillah Ummar',
                 'email' => '2210631170004@student.unsika.ac.id',
                 'password' => Hash::make('alif12345'),
-                'rfid_code' => null, // Will be registered later with actual RFID card
+                'rfid_code' => '04A1B2C3', // Sample UID format
                 'prodi' => 'Informatika',
                 'semester' => 7,
                 'role' => 'aslab',
@@ -38,7 +42,7 @@ class AslabSeeder extends Seeder
                 'name' => 'Aditya Rizku Darmawan',
                 'email' => '2210631170005@student.unsika.ac.id',
                 'password' => Hash::make('aditya12345'),
-                'rfid_code' => null, // Will be registered later with actual RFID card
+                'rfid_code' => '04D5E6F7', // Sample UID format
                 'prodi' => 'Informatika',
                 'semester' => 7,
                 'role' => 'aslab',
@@ -48,7 +52,7 @@ class AslabSeeder extends Seeder
                 'name' => 'Bintang Danuarta',
                 'email' => '2210631170006@student.unsika.ac.id',
                 'password' => Hash::make('bintang12345'),
-                'rfid_code' => null, // Will be registered later with actual RFID card
+                'rfid_code' => null, // Will be registered with actual card
                 'prodi' => 'Informatika',
                 'semester' => 7,
                 'role' => 'aslab',
@@ -58,7 +62,7 @@ class AslabSeeder extends Seeder
                 'name' => 'Iman Nurwahyu',
                 'email' => '2210631170007@student.unsika.ac.id',
                 'password' => Hash::make('iman12345'),
-                'rfid_code' => null, // Will be registered later with actual RFID card
+                'rfid_code' => null, // Will be registered with actual card
                 'prodi' => 'Informatika',
                 'semester' => 5,
                 'role' => 'aslab',
@@ -68,7 +72,7 @@ class AslabSeeder extends Seeder
                 'name' => 'Ikhwan Pratama Hidayat',
                 'email' => '2210631170008@student.unsika.ac.id',
                 'password' => Hash::make('ikhwan12345'),
-                'rfid_code' => null, // Will be registered later with actual RFID card
+                'rfid_code' => null, // Will be registered with actual card
                 'prodi' => 'Informatika',
                 'semester' => 7,
                 'role' => 'aslab',
@@ -78,7 +82,7 @@ class AslabSeeder extends Seeder
                 'name' => 'Ari Rizwan',
                 'email' => '2210631170009@student.unsika.ac.id',
                 'password' => Hash::make('doni12345'),
-                'rfid_code' => null, // Will be registered later with actual RFID card
+                'rfid_code' => null, // Will be registered with actual card
                 'prodi' => 'Informatika',
                 'semester' => 7,
                 'role' => 'aslab',
@@ -87,7 +91,13 @@ class AslabSeeder extends Seeder
         ];
 
         foreach ($aslabs as $aslab) {
-            User::create($aslab);
+            User::updateOrCreate(
+                ['email' => $aslab['email']],
+                $aslab
+            );
         }
+
+        $this->command->info('✓ Users created with sample RFID UIDs');
+        $this->command->info('✓ Use rfid_registration.ino to register actual cards');
     }
 }
