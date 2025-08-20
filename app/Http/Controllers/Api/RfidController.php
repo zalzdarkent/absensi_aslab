@@ -8,6 +8,7 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -204,5 +205,163 @@ class RfidController extends Controller
                 'data' => null
             ], 500);
         }
+    }
+
+    /**
+     * Handle RFID scan specifically for attendance (alias for scan method)
+     */
+    public function scanForAttendance(Request $request): JsonResponse
+    {
+        return $this->scan($request);
+    }
+
+    /**
+     * Get attendance logs with pagination
+     */
+    public function getAttendanceLogs(Request $request): JsonResponse
+    {
+        try {
+            $perPage = $request->input('per_page', 15);
+            $date = $request->input('date'); // Optional date filter
+
+            $query = Attendance::with('user')
+                              ->orderBy('timestamp', 'desc');
+
+            if ($date) {
+                $query->where('date', $date);
+            }
+
+            $attendances = $query->paginate($perPage);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data absensi berhasil diambil',
+                'data' => [
+                    'attendances' => $attendances->items(),
+                    'pagination' => [
+                        'current_page' => $attendances->currentPage(),
+                        'last_page' => $attendances->lastPage(),
+                        'per_page' => $attendances->perPage(),
+                        'total' => $attendances->total()
+                    ]
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Get Attendance Logs Error: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan sistem',
+                'data' => null
+            ], 500);
+        }
+    }
+
+    /**
+     * Get today's attendance summary
+     */
+    public function getTodayAttendance(Request $request): JsonResponse
+    {
+        try {
+            $today = now()->toDateString();
+
+            $attendances = Attendance::with('user')
+                                   ->where('date', $today)
+                                   ->orderBy('timestamp', 'desc')
+                                   ->get();
+
+            // Group by user and type
+            $summary = [];
+            $checkInCount = 0;
+            $checkOutCount = 0;
+
+            foreach ($attendances as $attendance) {
+                $userId = $attendance->user_id;
+
+                if (!isset($summary[$userId])) {
+                    $summary[$userId] = [
+                        'user' => [
+                            'id' => $attendance->user->id,
+                            'name' => $attendance->user->name,
+                            'prodi' => $attendance->user->prodi,
+                            'semester' => $attendance->user->semester
+                        ],
+                        'check_in' => null,
+                        'check_out' => null,
+                        'status' => 'absent'
+                    ];
+                }
+
+                if ($attendance->type === 'check_in') {
+                    $summary[$userId]['check_in'] = $attendance->timestamp->format('H:i:s');
+                    $summary[$userId]['status'] = 'present';
+                    if (!isset($summary[$userId]['counted_check_in'])) {
+                        $checkInCount++;
+                        $summary[$userId]['counted_check_in'] = true;
+                    }
+                } elseif ($attendance->type === 'check_out') {
+                    $summary[$userId]['check_out'] = $attendance->timestamp->format('H:i:s');
+                    if (!isset($summary[$userId]['counted_check_out'])) {
+                        $checkOutCount++;
+                        $summary[$userId]['counted_check_out'] = true;
+                    }
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data absensi hari ini berhasil diambil',
+                'data' => [
+                    'date' => Carbon::parse($today)->format('d/m/Y'),
+                    'summary' => [
+                        'total_check_in' => $checkInCount,
+                        'total_check_out' => $checkOutCount,
+                        'active_users' => count($summary)
+                    ],
+                    'attendances' => array_values($summary)
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Get Today Attendance Error: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan sistem',
+                'data' => null
+            ], 500);
+        }
+    }
+
+    /**
+     * Get current mode command for ESP32
+     */
+    public function getModeCommand()
+    {
+        $mode = Cache::get('rfid_mode', 'registration');
+
+        return response()->json([
+            'mode' => $mode
+        ]);
+    }
+
+    /**
+     * Set mode for ESP32
+     */
+    public function setMode(Request $request)
+    {
+        $request->validate([
+            'mode' => 'required|in:registration,check_in,check_out'
+        ]);
+
+        $mode = $request->input('mode');
+        Cache::put('rfid_mode', $mode, now()->addHours(24));
+
+        return response()->json([
+            'success' => true,
+            'mode' => $mode,
+            'message' => "Mode set to {$mode}"
+        ]);
     }
 }

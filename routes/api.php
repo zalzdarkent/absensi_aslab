@@ -19,4 +19,13 @@ Route::prefix('rfid')->group(function () {
     Route::post('/scan-for-registration', [RfidRegistrationController::class, 'scanForRegistration']);
     Route::get('/users', [RfidRegistrationController::class, 'getUsers']);
     Route::get('/last-scan', [RfidRegistrationController::class, 'getLastScan']);
+
+    // RFID Attendance Routes
+    Route::post('/scan-for-attendance', [RfidController::class, 'scanForAttendance']);
+    Route::get('/attendance-logs', [RfidController::class, 'getAttendanceLogs']);
+    Route::get('/attendance-today', [RfidController::class, 'getTodayAttendance']);
+
+    // RFID Mode Command Routes
+    Route::get('/get-mode-command', [RfidController::class, 'getModeCommand']);
+    Route::post('/set-mode', [RfidController::class, 'setMode']);
 });

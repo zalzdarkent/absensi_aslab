@@ -30,5 +30,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // RFID Registration routes
     Route::get('/rfid-registration', [App\Http\Controllers\RfidRegistrationController::class, 'index'])->name('rfid.registration');
     Route::post('/rfid-registration', [App\Http\Controllers\RfidRegistrationController::class, 'store'])->name('rfid.register');
+
+    // RFID Attendance Scan routes
+    Route::get('/attendance-scan', function () {
+        return Inertia::render('AttendanceScan');
+    })->name('attendance.scan');
 });require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
