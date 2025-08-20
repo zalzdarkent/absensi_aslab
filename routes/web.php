@@ -26,5 +26,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Aslab management routes
     Route::resource('aslabs', AslabController::class);
     Route::patch('aslabs/{aslab}/toggle-status', [AslabController::class, 'toggleStatus'])->name('aslabs.toggle-status');
+
+    // RFID Registration routes
+    Route::get('/rfid-registration', [App\Http\Controllers\RfidRegistrationController::class, 'index'])->name('rfid.registration');
+    Route::post('/rfid-registration', [App\Http\Controllers\RfidRegistrationController::class, 'store'])->name('rfid.register');
 });require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

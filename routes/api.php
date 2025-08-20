@@ -18,4 +18,5 @@ Route::prefix('rfid')->group(function () {
     Route::post('/register', [RfidRegistrationController::class, 'register']);
     Route::post('/scan-for-registration', [RfidRegistrationController::class, 'scanForRegistration']);
     Route::get('/users', [RfidRegistrationController::class, 'getUsers']);
+    Route::get('/last-scan', [RfidRegistrationController::class, 'getLastScan']);
 });

@@ -8,7 +8,7 @@ const char* ssid = "Asisten Laboratorium";  // ganti SSID WiFi kamu
 const char* password = "2025Labkomp:3";      // ganti password WiFi kamu
 
 // API Endpoint Laravel
-String serverName = "http://192.168.10.6:8000/api/rfid/scan-for-registration";  // endpoint untuk registrasi
+String serverName = "http://192.168.10.140:8000/api/rfid/scan-for-registration";  // endpoint untuk registrasi
 
 // RFID
 #define RST_PIN 22
@@ -16,14 +16,16 @@ String serverName = "http://192.168.10.6:8000/api/rfid/scan-for-registration";  
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
 void setup() {
-  Serial.begin(115200);
-  delay(1000); // Wait for serial to initialize
+   Serial.begin(115200);
+  delay(1000);
 
   Serial.println("\n=== ESP32 RFID REGISTRATION STARTED ===");
-  Serial.println("Initializing RFID reader...");
 
-  SPI.begin();
+  // Init SPI dengan pin ESP32
+  SPI.begin(18, 19, 23, 21); // SCK, MISO, MOSI, SS
   mfrc522.PCD_Init();
+
+  Serial.println("RFID reader initialized");
 
   // Test RFID reader
   if (mfrc522.PCD_PerformSelfTest()) {

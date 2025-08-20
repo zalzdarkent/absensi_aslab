@@ -73,6 +73,9 @@ class RfidRegistrationController extends Controller
 
             $rfidCode = strtoupper($request->input('rfid_code'));
 
+            // Store in cache for web interface (expires in 1 minute)
+            cache(['last_rfid_scan' => $rfidCode], now()->addMinutes(1));
+
             // Check if RFID is already registered
             $existingUser = User::where('rfid_code', $rfidCode)->first();
 
@@ -127,6 +130,46 @@ class RfidRegistrationController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Get Users Error: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan sistem',
+                'data' => null
+            ], 500);
+        }
+    }
+
+    /**
+     * Get last scanned RFID for web interface
+     */
+    public function getLastScan(): JsonResponse
+    {
+        try {
+            // Get from cache or session
+            $lastScan = cache('last_rfid_scan');
+
+            if ($lastScan) {
+                // Clear cache after reading
+                cache()->forget('last_rfid_scan');
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Last scan retrieved',
+                    'data' => [
+                        'rfid_code' => $lastScan,
+                        'timestamp' => now()
+                    ]
+                ], 200);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No recent scan',
+                'data' => null
+            ], 404);
+
+        } catch (\Exception $e) {
+            Log::error('Get Last Scan Error: ' . $e->getMessage());
 
             return response()->json([
                 'success' => false,
