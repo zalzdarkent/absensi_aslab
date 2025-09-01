@@ -227,7 +227,7 @@
         <!-- Recent Scans -->
         <div>
           <h4 class="text-lg font-semibold text-foreground mb-4">Scan Terbaru</h4>
-          
+
           <!-- DataTable for Recent Scans -->
           <DataTable
             :columns="columns"
@@ -278,10 +278,10 @@
         :key="toast.id"
         :class="[
           'max-w-sm w-full rounded-lg shadow-lg border transform transition-all duration-300 ease-in-out',
-          toast.type === 'success' 
+          toast.type === 'success'
             ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
             : toast.type === 'error'
-            ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' 
+            ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'
             : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700'
         ]"
       >
@@ -421,15 +421,15 @@ const successAudio = ref<HTMLAudioElement | null>(null)
 // Initialize audio
 const initializeAudio = () => {
   try {
-    successAudio.value = new Audio('/audio/hidupjokowi.mp3')
+    successAudio.value = new Audio('/audio/smb_coin.mp3')
     successAudio.value.volume = 0.7 // Set volume to 70%
     successAudio.value.preload = 'auto'
-    
+
     // Test if audio can load
     successAudio.value.addEventListener('canplaythrough', () => {
       console.log('Success audio loaded successfully')
     })
-    
+
     successAudio.value.addEventListener('error', (e) => {
       console.error('Error loading success audio:', e)
     })
@@ -445,7 +445,7 @@ const playSuccessAudio = () => {
       // Reset audio to start if it was already playing
       successAudio.value.currentTime = 0
       const playPromise = successAudio.value.play()
-      
+
       // Handle play promise for better browser compatibility
       if (playPromise !== undefined) {
         playPromise
@@ -498,7 +498,7 @@ const columns: Column[] = [
 const addToast = (type: 'success' | 'error' | 'info', title: string, message: string, data?: any) => {
   // Create simple throttle key to prevent only immediate duplicates
   const throttleKey = `${type}-${title}-${Date.now()}`
-  
+
   const id = Date.now().toString() + Math.random().toString(36).substr(2, 9)
   const toast: ToastNotification = {
     id,
@@ -508,19 +508,19 @@ const addToast = (type: 'success' | 'error' | 'info', title: string, message: st
     data,
     timestamp: new Date()
   }
-  
+
   toasts.value.unshift(toast)
-  
+
   // Play success audio for check-in/check-out success
   if (type === 'success' && (title.includes('Check-in') || title.includes('Check-out'))) {
     playSuccessAudio()
   }
-  
+
   // Limit to maximum 5 toasts
   if (toasts.value.length > 5) {
     toasts.value = toasts.value.slice(0, 5)
   }
-  
+
   // Auto remove after 5 seconds for success/info, 8 seconds for error
   const timeout = type === 'error' ? 8000 : 5000
   setTimeout(() => {
@@ -559,7 +559,7 @@ const setMode = async (mode: 'registration' | 'check_in' | 'check_out') => {
       if (data.success) {
         currentMode.value = mode
         console.log(`Mode changed to: ${mode}`)
-        
+
         // Show toast notification for mode change
         const modeText = mode === 'registration' ? 'Registrasi' : mode === 'check_in' ? 'Check In' : 'Check Out'
         addToast('info', 'Mode Berubah', `Mode sistem diubah ke: ${modeText}`)
@@ -639,31 +639,31 @@ const startScanning = () => {
 // Check for real-time scans from attendance logs
 const checkForRealTimeScans = (logs: any[]) => {
   if (!logs || logs.length === 0) return
-  
+
   // Get the most recent log entry
   const latestLog = logs[0]
   const scanKey = `log-${latestLog.id}-${latestLog.user_id}-${latestLog.type}-${latestLog.timestamp}`
-  
+
   // Check if this is a new scan we haven't processed
   if (scanKey !== lastProcessedScan.value) {
     // Check if the scan is recent (within last 30 seconds)
     const scanTime = new Date(latestLog.timestamp)
     const now = new Date()
     const timeDifference = (now.getTime() - scanTime.getTime()) / 1000
-    
+
     console.log('Checking real-time scan:', scanKey, 'Time diff:', timeDifference, 'seconds')
-    
+
     // Only show toast for very recent scans
     if (timeDifference >= 0 && timeDifference <= 30) {
       lastProcessedScan.value = scanKey
-      
+
       const title = latestLog.type === 'check_in' ? 'Check-in Berhasil!' : 'Check-out Berhasil!'
-      const message = latestLog.type === 'check_in' 
+      const message = latestLog.type === 'check_in'
         ? `Selamat datang, ${latestLog.user.name}!`
         : `Sampai jumpa, ${latestLog.user.name}!`
-      
+
       console.log('Showing real-time toast for:', scanKey)
-      
+
       addToast('success', title, message, {
         user: latestLog.user,
         attendance: {
@@ -678,10 +678,10 @@ const checkForRealTimeScans = (logs: any[]) => {
 const checkForNewScans = (attendances: any[]) => {
   // Skip if no attendances
   if (!attendances || attendances.length === 0) return
-  
+
   // Get all scans from today and sort by timestamp
   const allScans: any[] = []
-  
+
   attendances.forEach(att => {
     if (att.check_in) {
       allScans.push({
@@ -702,34 +702,34 @@ const checkForNewScans = (attendances: any[]) => {
       })
     }
   })
-  
+
   // Sort by full timestamp (newest first)
   allScans.sort((a, b) => b.fullTimestamp.getTime() - a.fullTimestamp.getTime())
-  
+
   if (allScans.length > 0) {
     const latestScan = allScans[0]
-    
+
     // Check if this is a new scan we haven't processed yet
     if (latestScan.scanKey !== lastProcessedScan.value) {
       // Check if scan is recent (within last 2 minutes to be safe)
       const now = new Date()
       const scanTime = latestScan.fullTimestamp
       const timeDifference = (now.getTime() - scanTime.getTime()) / 1000 // in seconds
-      
+
       console.log('Checking scan:', latestScan.scanKey, 'Time diff:', timeDifference, 'seconds')
-      
+
       // Only show toast for recent scans (within 2 minutes = 120 seconds)
       if (timeDifference >= 0 && timeDifference <= 120) {
         lastProcessedScan.value = latestScan.scanKey
-        
+
         // Create a toast notification for the new scan
         const title = latestScan.type === 'check_in' ? 'Check-in Berhasil!' : 'Check-out Berhasil!'
-        const message = latestScan.type === 'check_in' 
+        const message = latestScan.type === 'check_in'
           ? `Selamat datang, ${latestScan.user.name}!`
           : `Sampai jumpa, ${latestScan.user.name}!`
-        
+
         console.log('Showing toast for new scan:', latestScan.scanKey)
-        
+
         addToast('success', title, message, {
           user: latestScan.user,
           attendance: {
@@ -752,25 +752,25 @@ const checkForDirectScans = async () => {
       const scanData = await scanResponse.json()
       if (scanData.success && scanData.data.attendances.length > 0) {
         const latestScan = scanData.data.attendances[0]
-        
+
         // Create unique scan key using actual timestamp
         const scanKey = `${latestScan.user_id}-${latestScan.type}-${latestScan.timestamp}`
-        
+
         // Check if this is a new scan (within last 15 seconds) and not already processed
         const scanTime = new Date(latestScan.timestamp)
         const now = new Date()
         const timeDiff = (now.getTime() - scanTime.getTime()) / 1000
-        
+
         // Only show toast if scan is recent and hasn't been processed
         if (timeDiff <= 15 && scanKey !== lastProcessedScan.value) {
           lastProcessedScan.value = scanKey
-          
+
           // Show toast for real-time scan
           const title = latestScan.type === 'check_in' ? 'Check-in Berhasil!' : 'Check-out Berhasil!'
-          const message = latestScan.type === 'check_in' 
+          const message = latestScan.type === 'check_in'
             ? `Selamat datang, ${latestScan.user.name}!`
             : `Sampai jumpa, ${latestScan.user.name}!`
-          
+
           addToast('success', title, message, {
             user: latestScan.user,
             attendance: {
@@ -842,11 +842,11 @@ const updateRecentScans = (attendances: any[]) => {
 const handleScanError = (error: any) => {
   let errorMessage = 'Terjadi kesalahan saat scanning RFID'
   let errorTitle = 'Scan Gagal'
-  
+
   if (error.message) {
     errorMessage = error.message
   }
-  
+
   if (error.response) {
     // If it's a response from the API
     try {
@@ -865,7 +865,7 @@ const handleScanError = (error: any) => {
       // Ignore JSON parse error
     }
   }
-  
+
   addToast('error', errorTitle, errorMessage)
 }
 
@@ -887,7 +887,7 @@ const getTypeIcon = (type: string) => {
 }
 
 const getTypeColor = (type: string) => {
-  return type === 'check_in' 
+  return type === 'check_in'
     ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
     : 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400'
 }

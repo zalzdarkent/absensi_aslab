@@ -82,7 +82,7 @@ class AslabSeeder extends Seeder
                 'prodi' => 'Informatika',
                 'semester' => 7,
                 'role' => 'aslab',
-                'is_active' => false, // inactive user for testing
+                'is_active' => true, // inactive user for testing
             ],
         ];
 
